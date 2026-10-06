@@ -1,9 +1,9 @@
 > llmtimeline · cross-agent work record. state.md is the live snapshot — rewrite it in place. sessions/ is append-only history — never edit past files. Any agent: read this file and the newest sessions/ entries before starting.
 
-# Project State — updated 2026-10-06T21:53:34Z by Codex (session 014)
+# Project State — updated 2026-10-06T21:56:55Z by Codex (session 014)
 
 ## Goal
-Build a responsive SmartAttend frontend for lecturers and students, with a testable demo and a separate live API mode.
+Build a responsive SmartAttend frontend and matching backend for verified course rosters, live check-in and reports, with a testable demo and live API mode.
 
 ## Tasks
 - [x] Draft the frontend implementation plan and identify backend contract decisions.
@@ -26,10 +26,10 @@ Build a responsive SmartAttend frontend for lecturers and students, with a testa
 - [x] Bind live face enrollment to JWT and expose authoritative `/api/auth/me` user state.
 - [x] Complete and verify the local lecturer-to-student API flow, history and PDF reporting.
 - [x] Publish paired review branches to the user's GitHub repositories.
-- [!] Deploy the paired backend and promote the frontend: the account has no write access to the engineer's backend repository or production Render service; PostgreSQL migration is untested.
+- [!] Deploy the paired backend and promote the frontend: the account has no write access to the engineer's backend repository, Render deployment access is unavailable, and PostgreSQL migration is untested.
 
 ## Summary
-The frontend is public at `https://github.com/calledAdo/smartattend-frontend` and deployed from old `main` at `https://smartattend-frontend-jade.vercel.app`. The new frontend branch `codex/live-integration` is published at commit `7b4f03d`; Vercel built a protected preview at `https://smartattend-frontend-25eboy5gu-adokiyes-projects-ceb68897.vercel.app`. The backend branch `codex/live-integration` is published at commit `0b858d5` in fork `calledAdo/Real-time-Attendance-Auth-service`; the account cannot push to the engineer's origin. Backend changes enforce verified login, JWT-bound face enrollment, role-filtered courses/sessions/history, lecturer-owned controls and PDF, five-minute GPS check-in, and roster snapshot reporting. Local H2/email HTTP smoke testing covered registration through PDF with expected 400/403/409 rejections. Frontend build and eight backend tests pass. Browser camera matching, PostgreSQL migration, and public backend deployment remain open.
+The frontend is public at `https://github.com/calledAdo/smartattend-frontend` and deployed from old `main` at `https://smartattend-frontend-jade.vercel.app`. The new frontend branch `codex/live-integration` is published; Vercel built a protected preview at `https://smartattend-frontend-25eboy5gu-adokiyes-projects-ceb68897.vercel.app`. The backend branch `codex/live-integration` is published in fork `calledAdo/Real-time-Attendance-Auth-service`; the account cannot push to the engineer's origin. Backend changes enforce verified login, JWT-bound face enrollment, role-filtered courses/sessions/history, lecturer-owned controls and PDF, five-minute GPS check-in, and roster snapshot reporting. Local H2/email HTTP smoke testing covered registration through PDF with expected 400/403/409 rejections. Frontend build and eight backend tests pass. Browser camera matching, PostgreSQL migration, and public backend deployment remain open.
 
 ## Next
 Have the engineer review `https://github.com/calledAdo/Real-time-Attendance-Auth-service/tree/codex/live-integration`, then merge/deploy after a PostgreSQL migration check. Promote frontend branch `codex/live-integration` only when the matching backend is live. Local H2 API is running on port 2000 and Vite with the local proxy on `http://127.0.0.1:5179/`. A real person must test camera face matching on a device.
