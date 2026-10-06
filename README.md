@@ -2,6 +2,8 @@
 
 React/Vite frontend for lecturer course management and student attendance. It starts in **live API mode** using the previously supplied deployment at `https://real-time-attendance-auth-service.onrender.com`. A separate browser-local demo remains available from the sign-in screen. The current backend source does not yet support a complete live dashboard; see [BACKEND_API_STATUS.md](BACKEND_API_STATUS.md).
 
+**Production frontend:** https://smartattend-frontend-jade.vercel.app. Vercel is connected to this GitHub repository and builds production from `main`. Direct links to auth, lecturer, and student routes use `vercel.json` SPA rewrites.
+
 ## Run
 
 ```bash

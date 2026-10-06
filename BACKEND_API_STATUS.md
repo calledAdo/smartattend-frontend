@@ -29,7 +29,7 @@ Reviewed the current `main` source of [Real-time-Attendance-Auth-service](https:
 6. Add supporting lecturer emails to course creation or a separate authorized assignment route. The frontend's agreed supporting-lecturer flow cannot be saved by the current API.
 7. Decide the live face policy. The current check-in requires an enrolled embedding and a live embedding. If face work is deferred, provide a staging-only feature flag or a separate test environment that can check in without it. Do not make the production endpoint silently bypass face verification.
 8. Implement actual geofencing if location is part of the attendance guarantee. The current method parses `latitude` and `longitude` but never compares them with a lecturer location; session start stores no lecturer coordinates.
-9. Confirm the deployed revision, base URL, frontend production origin, and CORS allowlist. Source allows only `localhost:5173` and `127.0.0.1:5173`; local Vite currently runs on 5176. The Vite proxy avoids CORS during local development, but a deployed frontend needs its exact origin allowed.
+9. Confirm the deployed revision, base URL, and CORS allowlist. Add the production frontend origin `https://smartattend-frontend-jade.vercel.app` to the backend's allowed origins. Source allows only `localhost:5173` and `127.0.0.1:5173`; local Vite currently runs on 5176. The Vite proxy avoids CORS during local development, but production browser requests go directly to the Render API.
 
 ## Contract decisions to send back
 
