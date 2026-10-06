@@ -264,6 +264,7 @@ export function completedStudentSessions(db: Database, userId?: string) {
   const user = db.users.find(item => item.id === userId)
   return db.sessions.filter(session => {
     if (!user || isLive(session)) return false
+    if (session.isEligible) return true
     return studentInRoster(session.rosterSnapshot ?? db.courses.find(item => item.id === session.courseId)?.roster ?? [], user)
   })
 }

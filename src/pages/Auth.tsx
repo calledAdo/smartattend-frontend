@@ -93,7 +93,6 @@ export function FaceOnboardingPage() {
   if (!user) return <Navigate to="/auth/login" replace />
   if (!user.emailVerified) return <Navigate to="/auth/verify" replace />
   if (user.role !== 'STUDENT' || user.faceEnrolled) return <Navigate to={destination(user.role)} replace />
-  if (mode === 'live') return <AuthLayout><div className="auth-heading"><span className="auth-icon"><Camera size={22} /></span><h1>Face setup pending</h1><p>Student face setup will open when the backend links enrollment to the signed-in account.</p></div></AuthLayout>
   async function finish() {
     setBusy(true); setError('')
     try { await completeFace(photo, source); navigate('/student/dashboard') }

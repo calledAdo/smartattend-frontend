@@ -110,19 +110,32 @@ export function LiveAppStore({ children }: { children: ReactNode }) {
 
   const loadWorkspace = useCallback(async (currentUser: User) => {
     if (!getApiToken() || !currentUser.emailVerified || (currentUser.role === 'STUDENT' && !currentUser.faceEnrolled)) return
-    if (currentUser.role === 'LECTURER') {
-      setError('The backend does not provide a lecturer course-list endpoint yet. Newly created courses are visible only in this tab.')
-      return
-    }
-    if (!/^\d+$/.test(currentUser.id)) {
-      setError('The backend profile must include your numeric student ID before courses can load.')
-      return
-    }
     try {
-      const raw = await apiJson('GET', `/api/courses/student/${currentUser.id}`)
-      const courses = list(raw, 'courses', 'items', 'data').map(item => courseFrom(item, currentUser))
-      setDb(current => ({ ...current, courses }))
-      setError('The backend does not provide active-session discovery yet. Ask the backend engineer for a role-filtered active sessions endpoint.')
+      const [rawCourses, rawSessions, rawHistory] = await Promise.all([
+        apiJson('GET', '/api/courses/mine'),
+        apiJson('GET', '/api/attendance/sessions/active'),
+        apiJson('GET', '/api/attendance/sessions/history'),
+      ])
+      const courses = list(rawCourses, 'courses', 'items', 'data').map(item => courseFrom(item, currentUser))
+      const sessions = list(rawSessions, 'sessions', 'items', 'data').map(item => sessionFrom(item, currentUser))
+      const historyRows = list(rawHistory, 'sessions', 'items', 'data')
+      const history = historyRows.map(item => sessionFrom(item, currentUser))
+      const attendanceRows = [...historyRows, ...list(rawSessions, 'sessions', 'items', 'data').filter(item => value(object(item), 'myStatus') === 'PRESENT')]
+      const attendance = currentUser.role === 'STUDENT' ? attendanceRows.map(item => {
+        const row = object(item)
+        return { sessionId: value(row, 'id', 'sessionId'), courseId: value(row, 'courseId'), userId: currentUser.id,
+          status: value(row, 'myStatus') === 'PRESENT' ? 'PRESENT' as const : 'ABSENT' as const,
+          at: value(row, 'myCheckedInAt') || undefined }
+      }) : []
+      setDb(current => ({ ...current,
+        courses: courses.map(course => {
+          const previous = current.courses.find(item => item.id === course.id)
+          return previous?.roster.length && !course.roster.length ? { ...course, roster: previous.roster } : course
+        }),
+        sessions: [...sessions, ...history],
+        attendance,
+      }))
+      setError(null)
     } catch (issue) { setError((issue as Error).message) }
   }, [])
 
@@ -138,7 +151,15 @@ export function LiveAppStore({ children }: { children: ReactNode }) {
     finally { setLoading(false) }
   }, [loadWorkspace, setCurrentUser])
 
-  const refreshCourse = useCallback(async () => {}, [])
+  const refreshCourse = useCallback(async (courseId: string) => {
+    const profile = cachedUser()
+    if (!profile) return
+    const raw = await apiJson('GET', `/api/courses/${encodeURIComponent(courseId)}`)
+    const course = courseFrom(raw, profile)
+    setDb(current => ({ ...current, courses: current.courses.some(item => item.id === courseId)
+      ? current.courses.map(item => item.id === courseId ? course : item)
+      : [course, ...current.courses] }))
+  }, [])
 
   useEffect(() => {
     void refresh()
@@ -162,7 +183,7 @@ export function LiveAppStore({ children }: { children: ReactNode }) {
         const profile = userFrom(object(profileRaw).user ?? profileRaw, { email })
         sessionStorage.removeItem(PENDING_KEY)
         setCurrentUser(profile)
-        void loadWorkspace(profile)
+        await loadWorkspace(profile)
         return profile
       } catch (issue) {
         setApiToken(null)
@@ -201,15 +222,21 @@ export function LiveAppStore({ children }: { children: ReactNode }) {
       if (!pending?.email || pending.emailVerified) throw new Error('No pending email verification was found.')
       return apiText('POST', `/api/auth/resend-verification?email=${encodeURIComponent(pending.email)}`)
     },
-    async completeFace() {
-      throw new Error('Live face enrollment is paused until the backend binds /api/auth/onboard-face to the signed-in student.')
+    async completeFace(photo) {
+      if (!photo || !user || user.role !== 'STUDENT' || !user.emailVerified || !getApiToken()) {
+        throw new Error('Sign in with a verified student account before face setup.')
+      }
+      const facialEmbedding = await facialEmbeddingFromPhoto(photo)
+      await apiJson('POST', '/api/auth/onboard-face', { facialEmbedding })
+      const raw = await apiJson('GET', '/api/auth/me')
+      const profile = userFrom(object(raw).user ?? raw, user)
+      setCurrentUser(profile)
+      await loadWorkspace(profile)
     },
     async createCourse(input) {
       if (!user) throw new Error('Sign in as a lecturer first.')
-      if (!/^\d+$/.test(user.id)) throw new Error('The backend must return your numeric lecturer ID from /api/auth/me before a course can be created.')
-      if (input.supportingLecturerEmails.length) throw new Error('The backend has no supporting-lecturer email endpoint yet. Remove these emails before creating this course.')
       const code = input.code.trim().toUpperCase()
-      const raw = object(await apiJson('POST', '/api/courses', { courseCode: code, title: input.title.trim(), semester: input.semester.trim(), lecturerId: Number(user.id) }))
+      const raw = object(await apiJson('POST', '/api/courses', { courseCode: code, title: input.title.trim(), semester: input.semester.trim(), room: input.room.trim(), schedule: input.schedule.trim(), supportingLecturerEmails: input.supportingLecturerEmails }))
       const file = new FormData()
       file.append('file', rosterCsv(input.roster))
       try {
@@ -218,16 +245,17 @@ export function LiveAppStore({ children }: { children: ReactNode }) {
       } catch (issue) {
         throw new Error(`Course ${code} was created as a draft, but its roster was not confirmed: ${(issue as Error).message}`)
       }
-      const course = { ...courseFrom(raw.course ?? raw, user), room: input.room || 'Room to be announced', schedule: input.schedule || 'Schedule to be announced', roster: input.roster, enrolledCount: input.roster.length }
+      const course = { ...courseFrom(raw.course ?? raw, user), roster: input.roster, enrolledCount: input.roster.length }
       setDb(current => ({ ...current, courses: [course, ...current.courses] }))
+      void loadWorkspace(user)
       return course
     },
-    async startSession(courseId) {
+    async startSession(courseId, position) {
       if (!user) throw new Error('Sign in as a lecturer first.')
-      if (!/^\d+$/.test(user.id)) throw new Error('The backend must return your numeric lecturer ID before attendance can start.')
+      if (!position) throw new Error('Allow location access to start attendance.')
       const course = db.courses.find(item => item.id === courseId)
       if (!course) throw new Error('Course details are unavailable.')
-      const raw = object(await apiJson('POST', '/api/attendance/sessions', { courseCode: course.code, lecturerId: Number(user.id), durationMinutes: 5 }))
+      const raw = object(await apiJson('POST', '/api/attendance/sessions', { courseCode: course.code, latitude: position.latitude, longitude: position.longitude, durationMinutes: 5 }))
       const session = { ...sessionFrom({ ...raw, courseId }, user), courseId }
       setDb(current => ({ ...current, sessions: [session, ...current.sessions] }))
       return session

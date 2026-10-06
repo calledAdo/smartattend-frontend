@@ -52,3 +52,8 @@ export async function apiText(method: string, path: string, body?: unknown): Pro
   const response = await send(method, path, body)
   return response.text()
 }
+
+export async function apiBlob(method: string, path: string): Promise<Blob> {
+  const response = await send(method, path)
+  return response.blob()
+}
