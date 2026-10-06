@@ -18,6 +18,10 @@ Vite proxies local `/api` requests to the Render backend by default. To test the
 VITE_API_PROXY_TARGET=http://127.0.0.1:2000 npm run dev
 ```
 
+For persistent local testing, use real PostgreSQL with the setup and smoke scripts in the [backend review branch](https://github.com/calledAdo/Real-time-Attendance-Auth-service/tree/codex/live-integration). Clone it alongside this frontend repository. The Vite development proxy works on whichever local port is available.
+
+To test the camera flow yourself, register fresh lecturer and student accounts in separate browser tabs. The local API prints each six-digit email verification code in its terminal. Verify both accounts, enroll the student with a live camera capture, then create a lecturer course with a CSV containing `name,matricNo,email` and the student's exact matric number and email. Open the course, start attendance with location permission, and check in from the student tab with the displayed code, location and camera. The completed session appears in lecturer Reports and student History. Browser camera and location permissions work on `localhost`; testing from a phone over plain HTTP requires a secure origin.
+
 For production builds, `VITE_API_BASE_URL` can override the backend origin and may include or omit `/api`. The frontend stores the bearer JWT in tab `sessionStorage`; it does not substitute mock data when a live request fails. Vercel SPA route rewrites are configured in `vercel.json`.
 
 ## Live flow
