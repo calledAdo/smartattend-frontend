@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { faceDescriptorsMatch, facialEmbeddingFromPhoto } from './face'
 
 export type Role = 'LECTURER' | 'STUDENT'
-export type User = { id: string; name: string; email: string; role: Role; department: string; matricNo?: string; emailVerified: boolean; faceEnrolled?: boolean }
+export type User = { id: string; name: string; email: string; role: Role; department: string; matricNo?: string; emailVerified: boolean; faceEnrolled?: boolean; faceMode?: 'camera' | 'demo' }
 export type RosterStudent = { name: string; matricNo: string; email: string }
 export type Course = { id: string; code: string; title: string; semester: string; lecturerId: string; room: string; schedule: string; enrolledCount: number; color: string; roster: RosterStudent[]; supportingLecturerEmails: string[]; isAssigned?: boolean; isManaged?: boolean }
 export type CheckIn = { userId: string; name: string; at: string; email?: string; matricNo?: string }
@@ -12,13 +13,14 @@ export type Database = { users: User[]; currentUserId: string | null; courses: C
 
 const STORAGE_KEY = 'smartattend-demo-v1'
 const AUTH_KEY = 'smartattend-demo-user-v1'
+const faceTemplates = new Map<string, { kind: 'camera'; embedding: string } | { kind: 'demo' }>()
 const minute = 60_000
 const uid = () => Math.random().toString(36).slice(2, 10)
 
 function seed(): Database {
   const now = Date.now()
   const lecturer: User = { id: 'lecturer-demo', name: 'Dr. Maya Johnson', email: 'maya@smartattend.demo', role: 'LECTURER', department: 'Computer Science', emailVerified: true }
-  const student: User = { id: 'student-demo', name: 'Amara Okafor', email: 'amara@smartattend.demo', role: 'STUDENT', department: 'Computer Science', matricNo: 'CSC/2023/0421', emailVerified: true, faceEnrolled: true }
+  const student: User = { id: 'student-demo', name: 'Amara Okafor', email: 'amara@smartattend.demo', role: 'STUDENT', department: 'Computer Science', matricNo: 'CSC/2023/0421', emailVerified: true, faceEnrolled: false }
   const courses: Course[] = [
     { id: 'csc301', code: 'CSC 301', title: 'Database Management Systems', semester: 'First semester 2026/27', lecturerId: lecturer.id, room: 'LT 204', schedule: 'Mon, Wed · 10:00 AM', enrolledCount: 48, color: 'mint' },
     { id: 'csc205', code: 'CSC 205', title: 'Data Structures & Algorithms', semester: 'First semester 2026/27', lecturerId: lecturer.id, room: 'Engineering Hall', schedule: 'Tue, Thu · 2:00 PM', enrolledCount: 42, color: 'coral' },
@@ -62,7 +64,10 @@ function readDb(): Database {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
     const data = saved ? JSON.parse(saved) as Database : seed()
-    const users = data.users.map(user => ({ ...user, emailVerified: user.emailVerified ?? true, matricNo: user.matricNo ?? (user.id === 'student-demo' ? 'CSC/2023/0421' : undefined) }))
+    const users = data.users.map(user => {
+      const template = faceTemplates.get(user.id)
+      return { ...user, emailVerified: user.emailVerified ?? true, matricNo: user.matricNo ?? (user.id === 'student-demo' ? 'CSC/2023/0421' : undefined), faceEnrolled: user.role === 'STUDENT' ? Boolean(template) : user.faceEnrolled, faceMode: template?.kind }
+    })
     const courses = data.courses.map(course => ({ ...course, roster: course.roster ?? data.enrollments.filter(item => item.courseId === course.id).flatMap(item => { const user = users.find(user => user.id === item.userId); return user?.matricNo ? [{ name: user.name, matricNo: user.matricNo, email: user.email }] : [] }), supportingLecturerEmails: course.supportingLecturerEmails ?? [] }))
     return { ...data, users, courses, verificationTokens: data.verificationTokens ?? {}, currentUserId: sessionStorage.getItem(AUTH_KEY) }
   } catch {
@@ -73,7 +78,7 @@ function readDb(): Database {
 function persistDb(db: Database) {
   if (db.currentUserId) sessionStorage.setItem(AUTH_KEY, db.currentUserId)
   else sessionStorage.removeItem(AUTH_KEY)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...db, currentUserId: null }))
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...db, users: db.users.map(user => user.role === 'STUDENT' ? { ...user, faceEnrolled: false, faceMode: undefined } : user), currentUserId: null }))
 }
 
 function distanceMeters(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }) {
@@ -85,6 +90,7 @@ function distanceMeters(a: { latitude: number; longitude: number }, b: { latitud
 }
 
 export type NewUser = { name: string; email: string; role: Role; matricNo?: string; password: string }
+export type CaptureSource = 'camera' | 'demo'
 type Awaitable<T> = T | Promise<T>
 export type Store = {
   db: Database
@@ -99,14 +105,14 @@ export type Store = {
   signOut: () => void
   register: (input: NewUser) => Awaitable<User>
   verifyEmail: (token: string) => Awaitable<User>
-  completeFace: (photo: Blob | null) => Awaitable<void>
+  completeFace: (photo: Blob | null, source?: CaptureSource) => Awaitable<void>
   resendVerification: () => Awaitable<string>
   createCourse: (input: { code: string; title: string; semester: string; room: string; schedule: string; roster: RosterStudent[]; supportingLecturerEmails: string[] }) => Awaitable<Course>
   startSession: (courseId: string, position?: { latitude: number; longitude: number; accuracyMeters?: number }) => Awaitable<Session>
   endSession: (sessionId: string) => Awaitable<void>
   verifyLocation: (sessionId: string, position: { latitude: number; longitude: number; accuracyMeters?: number }) => Awaitable<void>
   verifyCode: (sessionId: string, code: string) => Awaitable<void>
-  submitCheckIn: (sessionId: string, faceImage: Blob | null, position: { latitude: number; longitude: number; accuracyMeters?: number } | null, code: string) => Awaitable<void>
+  submitCheckIn: (sessionId: string, faceImage: Blob | null, position: { latitude: number; longitude: number; accuracyMeters?: number } | null, code: string, source?: CaptureSource) => Awaitable<void>
 }
 
 export const StoreContext = createContext<Store | null>(null)
@@ -149,7 +155,10 @@ export function AppStore({ children }: { children: ReactNode }) {
       update(current => ({ ...current, currentUserId: found.id }))
       return found
     },
-    signOut() { update(current => ({ ...current, currentUserId: null })) },
+    signOut() {
+      faceTemplates.clear()
+      update(current => ({ ...current, users: current.users.map(item => item.role === 'STUDENT' ? { ...item, faceEnrolled: false, faceMode: undefined } : item), currentUserId: null }))
+    },
     register(input) {
       if (db.users.some(item => item.email.toLowerCase() === input.email.trim().toLowerCase())) throw new Error('An account with this email already exists.')
       if (!input.name.trim() || !input.email.trim() || input.password.length < 8) throw new Error('Complete your details and use a password of at least 8 characters.')
@@ -172,10 +181,12 @@ export function AppStore({ children }: { children: ReactNode }) {
       update(current => ({ ...current, verificationTokens: { ...current.verificationTokens, [user.id]: token } }))
       return token
     },
-    completeFace(photo) {
+    async completeFace(photo, source = 'camera') {
       if (!user || user.role !== 'STUDENT' || !user.emailVerified) throw new Error('Verify your student email first.')
       if (!photo || !photo.type.startsWith('image/')) throw new Error('Capture a face photo to continue.')
-      update(current => ({ ...current, users: current.users.map(item => item.id === user.id ? { ...item, faceEnrolled: true } : item) }))
+      const template = source === 'demo' ? { kind: 'demo' as const } : { kind: 'camera' as const, embedding: await facialEmbeddingFromPhoto(photo) }
+      faceTemplates.set(user.id, template)
+      update(current => ({ ...current, users: current.users.map(item => item.id === user.id ? { ...item, faceEnrolled: true, faceMode: source } : item) }))
     },
     createCourse(input) {
       if (!user || user.role !== 'LECTURER' || !user.emailVerified) throw new Error('Verified lecturer access required.')
@@ -212,7 +223,7 @@ export function AppStore({ children }: { children: ReactNode }) {
       if (!session || !isLive(session)) throw new Error('This attendance session has ended.')
       if (session.code !== code.trim()) throw new Error('That code does not match. Check the code shown in class.')
     },
-    submitCheckIn(sessionId, faceImage, position, code) {
+    async submitCheckIn(sessionId, faceImage, position, code, source = 'camera') {
       const session = db.sessions.find(item => item.id === sessionId)
       if (!user || user.role !== 'STUDENT' || !session || !isLive(session)) throw new Error('This attendance session has ended.')
       if (!studentInRoster(session.rosterSnapshot ?? db.courses.find(item => item.id === session.courseId)?.roster ?? [], user)) throw new Error('You are not on this course roster.')
@@ -220,6 +231,13 @@ export function AppStore({ children }: { children: ReactNode }) {
       if (session.code !== code.trim()) throw new Error('That code does not match. Check the code shown in class.')
       if (!faceImage || !faceImage.type.startsWith('image/')) throw new Error('Capture a face photo before marking attendance.')
       if (db.attendance.some(item => item.userId === user.id && item.sessionId === sessionId)) throw new Error('Your attendance has already been recorded.')
+      const template = faceTemplates.get(user.id)
+      if (!template) throw new Error('Set up your face again before checking in.')
+      if (template.kind === 'camera') {
+        if (source !== 'camera') throw new Error('Use your camera to verify the enrolled face.')
+        const captured = await facialEmbeddingFromPhoto(faceImage)
+        if (!faceDescriptorsMatch(template.embedding, captured)) throw new Error('Face verification failed. Retake the photo and try again.')
+      }
       const at = new Date().toISOString()
       update(current => ({ ...current, sessions: current.sessions.map(item => item.id === sessionId ? { ...item, checkIns: [{ userId: user.id, name: user.name, email: user.email, matricNo: user.matricNo, at }, ...item.checkIns] } : item), attendance: [...current.attendance, { sessionId, courseId: session.courseId, userId: user.id, status: 'PRESENT', at }] }))
     },

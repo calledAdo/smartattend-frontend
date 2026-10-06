@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, BookOpen, Camera, Check, GraduationCap, LockKeyhole, Mail, ShieldCheck, Users } from 'lucide-react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { Brand, CameraCapture } from '../components'
-import { useApp, type Role } from '../data'
+import { useApp, type CaptureSource, type Role } from '../data'
 import { enterLive } from '../mode'
 
 function AuthAside() {
@@ -87,6 +87,7 @@ export function FaceOnboardingPage() {
   const { user, mode, completeFace } = useApp()
   const navigate = useNavigate()
   const [photo, setPhoto] = useState<Blob | null>(null)
+  const [source, setSource] = useState<CaptureSource>('camera')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   if (!user) return <Navigate to="/auth/login" replace />
@@ -95,9 +96,9 @@ export function FaceOnboardingPage() {
   if (mode === 'live') return <AuthLayout><div className="auth-heading"><span className="auth-icon"><Camera size={22} /></span><h1>Face setup pending</h1><p>Student face setup will open when the backend links enrollment to the signed-in account.</p></div></AuthLayout>
   async function finish() {
     setBusy(true); setError('')
-    try { await completeFace(photo); navigate('/student/dashboard') }
+    try { await completeFace(photo, source); navigate('/student/dashboard') }
     catch (issue) { setError((issue as Error).message) }
     finally { setBusy(false) }
   }
-  return <AuthLayout><div className="auth-heading"><span className="auth-icon"><Camera size={22} /></span><h1>Set up face check-in</h1><p>Capture a clear photo to finish your student account.</p></div><div className="register-steps"><span>1. Your details</span><span>2. Verify email</span><span className="current">3. Face capture</span></div><div className="auth-form"><div className="capture-note"><ShieldCheck size={18} /><span>{mode === 'demo' ? 'Face matching is simulated in this demo. No image or biometric template is stored.' : 'Your face descriptor is sent to the attendance service for enrollment.'}</span></div><CameraCapture allowDemo={mode === 'demo'} onCapture={setPhoto} onClear={() => setPhoto(null)} />{error && <p className="form-error" role="alert">{error}</p>}<button className="button button-primary button-full" disabled={!photo || busy} onClick={finish}>{busy ? 'Enrolling...' : 'Finish setup'} <ArrowRight size={18} /></button></div></AuthLayout>
+  return <AuthLayout><div className="auth-heading"><span className="auth-icon"><Camera size={22} /></span><h1>Set up face check-in</h1><p>Capture a clear photo to finish your student account.</p></div><div className="register-steps"><span>1. Your details</span><span>2. Verify email</span><span className="current">3. Face capture</span></div><div className="auth-form"><div className="capture-note"><ShieldCheck size={18} /><span>{mode === 'demo' ? 'A camera capture is matched locally during check-in. The template stays in this tab and is cleared on refresh; demo capture remains simulated.' : 'Your face descriptor is sent to the attendance service for enrollment.'}</span></div><CameraCapture allowDemo={mode === 'demo'} onCapture={(blob, capturedFrom) => { setPhoto(blob); setSource(capturedFrom) }} onClear={() => { setPhoto(null); setSource('camera') }} />{error && <p className="form-error" role="alert">{error}</p>}<button className="button button-primary button-full" disabled={!photo || busy} onClick={finish}>{busy ? 'Enrolling...' : 'Finish setup'} <ArrowRight size={18} /></button></div></AuthLayout>
 }

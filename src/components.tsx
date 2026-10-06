@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { BookOpen, ChartNoAxesCombined, ClipboardCheck, DoorOpen, GraduationCap, History, LayoutDashboard, Menu, Radio, X, type LucideIcon } from 'lucide-react'
-import { initials, useApp, type Role } from './data'
+import { initials, useApp, type CaptureSource, type Role } from './data'
 
 const lecturerLinks: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/lecturer/dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -56,42 +56,61 @@ export function Modal({ title, children, onClose, width = 'standard' }: { title:
   return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}><div ref={dialog} role="dialog" aria-modal="true" aria-label={title} className={`modal modal-${width}`}><div className="modal-heading"><h2>{title}</h2><button className="icon-button" aria-label="Close dialog" onClick={onClose}><X size={20} /></button></div>{children}</div></div>
 }
 
-export function CameraCapture({ onCapture, onClear, allowDemo = false }: { onCapture: (blob: Blob) => void; onClear?: () => void; allowDemo?: boolean }) {
+export function CameraCapture({ onCapture, onClear, allowDemo = false }: { onCapture: (blob: Blob, source: CaptureSource) => void; onClear?: () => void; allowDemo?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const previewRef = useRef<string | null>(null)
+  const mountedRef = useRef(false)
+  const openingRef = useRef(false)
   const [preview, setPreview] = useState<string | null>(null)
   const [cameraOpen, setCameraOpen] = useState(false)
+  const [opening, setOpening] = useState(false)
+  const [capturing, setCapturing] = useState(false)
   const [error, setError] = useState('')
 
   const stop = () => { streamRef.current?.getTracks().forEach(track => track.stop()); streamRef.current = null; setCameraOpen(false) }
-  useEffect(() => () => { streamRef.current?.getTracks().forEach(track => track.stop()); if (previewRef.current) URL.revokeObjectURL(previewRef.current) }, [])
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false; streamRef.current?.getTracks().forEach(track => track.stop()); if (previewRef.current) URL.revokeObjectURL(previewRef.current) }
+  }, [])
 
   async function openCamera() {
+    if (openingRef.current) return
     setError('')
     if (!navigator.mediaDevices?.getUserMedia) { setError('Camera access is unavailable. Use a secure connection and allow camera permission.'); return }
+    openingRef.current = true
+    setOpening(true)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+      if (!mountedRef.current) { stream.getTracks().forEach(track => track.stop()); return }
+      streamRef.current?.getTracks().forEach(track => track.stop())
       streamRef.current = stream
       setCameraOpen(true)
       requestAnimationFrame(() => { if (videoRef.current) { videoRef.current.srcObject = stream; void videoRef.current.play() } })
-    } catch { setError('Camera access was denied or unavailable. Allow access in your browser and try again.') }
+    } catch { if (mountedRef.current) setError('Camera access was denied or unavailable. Allow access in your browser and try again.') }
+    finally { openingRef.current = false; if (mountedRef.current) setOpening(false) }
   }
 
   function capture() {
+    if (capturing) return
     const video = videoRef.current
     if (!video || !video.videoWidth) { setError('The camera is still starting. Try again.'); return }
     const canvas = document.createElement('canvas')
     canvas.width = Math.min(video.videoWidth, 720)
     canvas.height = Math.round(canvas.width * video.videoHeight / video.videoWidth)
-    canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height)
+    const context = canvas.getContext('2d')
+    if (!context) { setError('Could not capture a photo. Try again.'); return }
+    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+    setCapturing(true)
     canvas.toBlob(blob => {
+      if (!mountedRef.current) return
+      setCapturing(false)
       if (!blob) { setError('Could not capture a photo. Try again.'); return }
       if (previewRef.current) URL.revokeObjectURL(previewRef.current)
       const url = URL.createObjectURL(blob)
       previewRef.current = url
       setPreview(url)
-      onCapture(blob)
+      onCapture(blob, 'camera')
       stop()
     }, 'image/jpeg', 0.85)
   }
@@ -104,12 +123,13 @@ export function CameraCapture({ onCapture, onClear, allowDemo = false }: { onCap
     ctx.fillStyle = '#7ea99b'; ctx.beginPath(); ctx.arc(160, 124, 55, 0, Math.PI * 2); ctx.fill()
     ctx.beginPath(); ctx.ellipse(160, 294, 100, 100, 0, 0, Math.PI * 2); ctx.fill()
     canvas.toBlob(blob => {
+      if (!mountedRef.current) return
       if (!blob) return
       if (previewRef.current) URL.revokeObjectURL(previewRef.current)
       const url = URL.createObjectURL(blob)
       previewRef.current = url
       setPreview(url)
-      onCapture(blob)
+      onCapture(blob, 'demo')
       stop()
       setError('')
     }, 'image/jpeg')
@@ -119,9 +139,9 @@ export function CameraCapture({ onCapture, onClear, allowDemo = false }: { onCap
     if (previewRef.current) URL.revokeObjectURL(previewRef.current)
     previewRef.current = null
     setPreview(null)
+    setError('')
     onClear?.()
-    void openCamera()
   }
 
-  return <div className="camera-capture"><div className="camera-frame">{preview ? <img src={preview} alt="Captured face preview" /> : cameraOpen ? <video ref={videoRef} autoPlay muted playsInline aria-label="Live camera preview" /> : <div className="camera-idle"><div className="face-outline"><span /></div><p>Position your face in the frame</p></div>}</div>{error && <p className="field-error" role="alert">{error}</p>}<div className="camera-actions">{preview ? <button type="button" className="button button-secondary" onClick={retake}>Retake photo</button> : cameraOpen ? <button type="button" className="button button-primary" onClick={capture}>Capture photo</button> : <><button type="button" className="button button-primary" onClick={openCamera}>Open camera</button>{allowDemo && <button type="button" className="button button-quiet" onClick={demoCapture}>Use demo capture</button>}</>}</div></div>
+  return <div className="camera-capture"><div className="camera-frame">{preview ? <img src={preview} alt="Captured face preview" /> : cameraOpen ? <video ref={videoRef} autoPlay muted playsInline aria-label="Live camera preview" /> : <div className="camera-idle"><div className="face-outline"><span /></div><p>Position your face in the frame</p></div>}</div>{error && <p className="field-error" role="alert">{error}</p>}<div className="camera-actions">{preview ? <button type="button" className="button button-secondary" onClick={retake}>Retake photo</button> : cameraOpen ? <button type="button" className="button button-primary" disabled={capturing} onClick={capture}>{capturing ? 'Capturing...' : 'Capture photo'}</button> : <><button type="button" className="button button-primary" disabled={opening} onClick={openCamera}>{opening ? 'Opening camera...' : 'Open camera'}</button>{allowDemo && <button type="button" className="button button-quiet" disabled={opening} onClick={demoCapture}>Use demo capture</button>}</>}</div></div>
 }

@@ -35,3 +35,20 @@ export async function facialEmbeddingFromPhoto(photo: Blob): Promise<string> {
   }
   return JSON.stringify(descriptor)
 }
+
+export function faceDescriptorsMatch(enrolledJson: string, captureJson: string): boolean {
+  const enrolled = JSON.parse(enrolledJson) as unknown
+  const capture = JSON.parse(captureJson) as unknown
+  if (!Array.isArray(enrolled) || !Array.isArray(capture) || enrolled.length !== 128 || capture.length !== 128) return false
+  if (enrolled.some(value => typeof value !== 'number' || !Number.isFinite(value)) || capture.some(value => typeof value !== 'number' || !Number.isFinite(value))) return false
+
+  let dot = 0
+  let enrolledNorm = 0
+  let captureNorm = 0
+  for (let index = 0; index < 128; index++) {
+    dot += enrolled[index] * capture[index]
+    enrolledNorm += enrolled[index] ** 2
+    captureNorm += capture[index] ** 2
+  }
+  return enrolledNorm > 0 && captureNorm > 0 && dot / Math.sqrt(enrolledNorm * captureNorm) >= 0.65
+}
