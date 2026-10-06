@@ -26,7 +26,7 @@ For production builds, `VITE_API_BASE_URL` can override the backend origin and m
 
 ## Live flow
 
-Students register with their `@student.oauife.edu.ng` email, name, password and matric number. Lecturers register with staff email, name and password. The backend emails a six-digit confirmation code. After verifying, users sign in; students then enroll a camera-generated 128-value face descriptor. Lecturer course creation sends course details, optional supporting lecturer emails and a CSV roster. A verified student's email **and** matric number must match the roster to see the course.
+Students register with their `@student.oauife.edu.ng` email, name, password and matric number. Lecturers register with staff email, name and password. The backend emails a six-digit confirmation code. After verifying, users sign in; students then enroll a camera-generated 128-value face descriptor before they can access courses, sessions, history or reports. Students can sign out from face setup and resume it after signing in again. Lecturers enter their dashboard after email verification and sign-in without face enrollment. Lecturer course creation sends course details, optional supporting lecturer emails and a CSV roster. A verified student's email **and** matric number must match the roster to see the course.
 
 Lecturers start attendance from a course after allowing location access. The backend issues a five-minute code. Students use location, the class code and a live camera capture to check in; the backend checks roster, 100 m geofence, code, duplicate status and face descriptor similarity. Sessions and history are polled every 15 seconds. Lecturers can close a session and download a server-generated PDF containing present and absent roster members.
 
