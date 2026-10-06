@@ -9,3 +9,4 @@ dist
 *.tsbuildinfo
 .vercel/
 backend-service/
+/local-roster.csv
