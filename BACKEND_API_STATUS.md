@@ -18,6 +18,6 @@ All protected routes require `Authorization: Bearer <jwt>`. The server derives t
 
 ## Verification
 
-The React production build and four backend unit tests pass. A local H2-backed HTTP run covered registration, code verification, login, roster upload/confirmation, student course lookup, face enrollment with a synthetic descriptor, session start, student projection, out-of-range rejection (400), successful check-in, duplicate rejection (409), closure, student history, PDF present/absent rows, and student PDF denial (403).
+The React production build and eight backend unit tests pass. A local H2-backed HTTP run covered registration, code verification, login, roster upload/confirmation, student course lookup, face enrollment with a synthetic descriptor, session start, student projection, out-of-range rejection (400), successful check-in, duplicate rejection (409), closure, student history, PDF present/absent rows, and student PDF denial (403).
 
 The local test did not exercise real camera capture, liveness, deployed email delivery, WebSocket push, or a PostgreSQL migration. Browser face descriptors and GPS can be spoofed; this release should be described as face matching and geofencing, not liveness assurance. Before pointing Vercel at the new backend, deploy the paired backend revision and check its PostgreSQL schema and CORS on the production origin.
