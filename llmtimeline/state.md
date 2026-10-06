@@ -1,6 +1,6 @@
 > llmtimeline · cross-agent work record. state.md is the live snapshot — rewrite it in place. sessions/ is append-only history — never edit past files. Any agent: read this file and the newest sessions/ entries before starting.
 
-# Project State — updated 2026-10-06T23:07:29Z by Codex (session 016)
+# Project State — updated 2026-10-06T23:09:22Z by Codex (session 016)
 
 ## Goal
 Build a responsive SmartAttend frontend and matching backend for verified course rosters, live check-in and reports, with a testable demo and live API mode.
@@ -31,10 +31,10 @@ Build a responsive SmartAttend frontend and matching backend for verified course
 - [!] Deploy the paired backend and promote the frontend: the account has no write access to the engineer's backend repository, Render deployment access is unavailable, and PostgreSQL migration is untested.
 
 ## Summary
-The frontend is public at `https://github.com/calledAdo/smartattend-frontend` and deployed from old `main` at `https://smartattend-frontend-jade.vercel.app`. The `codex/live-integration` review branches are the integration handoff; the account cannot push to the engineer's origin. Local PostgreSQL 17 runs in an isolated cluster on 127.0.0.1:55432. The PostgreSQL HTTP smoke test passed registration, verification, login, roster, 403 enrollment gate before face setup, synthetic face enrollment, course access afterward, geofence rejection, check-in, duplicate rejection, closure, history, PDF authorization and present/absent rows. The live browser was checked in an earlier pass; a fresh browser check of the face-setup sign-out interaction could not run because the browser helper lacks Bun. Frontend build and ten backend tests pass. Real camera/liveness, production database migration and public backend deployment remain open.
+The frontend is public at `https://github.com/calledAdo/smartattend-frontend` and deployed from old `main` at `https://smartattend-frontend-jade.vercel.app`. The `codex/live-integration` review branches are published at frontend commit `8e42773` and backend fork commit `d8c017f`; the account cannot push to the engineer's origin. Local PostgreSQL 17 runs in an isolated cluster on 127.0.0.1:55432. The PostgreSQL HTTP smoke test passed registration, verification, login, roster, 403 enrollment gate before face setup, synthetic face enrollment, course access afterward, geofence rejection, check-in, duplicate rejection, closure, history, PDF authorization and present/absent rows. The live browser was checked in an earlier pass; a fresh browser check of the face-setup sign-out interaction could not run because the browser helper lacks Bun. Frontend build and ten backend tests pass. Real camera/liveness, production database migration and public backend deployment remain open.
 
 ## Next
-Publish both updated `codex/live-integration` review branches. A real person must test camera enrollment and matching; production deployment still needs backend ownership/access and a database migration plan.
+A real person must test camera enrollment and matching with a fresh student account. Production deployment still needs backend ownership/access and a database migration plan; Vercel `main` still serves the older app version.
 
 ## Notes
 Browser-generated descriptors are forgeable and do not prove liveness. Demo passwords are not checked or stored, and demo location/photo shortcuts bypass physical verification. Browser screenshot blocking and reliable device fingerprinting cannot be guaranteed by a web frontend. Background web push requires service worker and backend push subscription support. The local API profile prints verification codes to its process log; the `postgres-local` overlay replaces H2 with PostgreSQL. GitHub `gh auth status` succeeds only with an escalated command outside the filesystem sandbox; the account has no push permission on the engineer's origin. Vercel preview redirects to access control for anonymous visitors. An npm audit previously found old Node-fetch advisories through face-api.js and pre-existing jsPDF advisories; no dependency upgrade was part of this endpoint task.
