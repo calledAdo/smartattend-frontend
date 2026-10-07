@@ -8,3 +8,5 @@ dist
 !.env.example
 *.tsbuildinfo
 .vercel/
+backend-service/
+/local-roster.csv

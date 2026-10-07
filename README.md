@@ -1,28 +1,39 @@
 # SmartAttend frontend
 
-React/Vite frontend for lecturer course management and student attendance. It starts in **live API mode** using the previously supplied deployment at `https://real-time-attendance-auth-service.onrender.com`. A separate browser-local demo remains available from the sign-in screen. The current backend source does not yet support a complete live dashboard; see [BACKEND_API_STATUS.md](BACKEND_API_STATUS.md).
+React/Vite frontend for lecturer course setup, five-minute attendance sessions, student check-in, and attendance reports. It starts in live API mode. A separate browser-local demo is available from the sign-in screen.
 
-**Production frontend:** https://smartattend-frontend-jade.vercel.app. Vercel is connected to this GitHub repository and builds production from `main`. Direct links to auth, lecturer, and student routes use `vercel.json` SPA rewrites.
+The production frontend is `https://smartattend-frontend-jade.vercel.app`. It currently uses the older Render API at `https://real-time-attendance-auth-service.onrender.com`; the new paired backend changes in `backend-service/` have not been deployed. See [BACKEND_API_STATUS.md](BACKEND_API_STATUS.md) before testing live mode on the public site.
 
 ## Run
 
 ```bash
 npm install
 npm run dev
+npm run build
 ```
 
-Open the URL printed by Vite. `npm run build` checks TypeScript and creates a production build. Local `/api` requests pass through the Vite proxy; production requests go to the Render origin. Set `VITE_API_BASE_URL` to another backend origin before building to change that target. The value can include or omit `/api`.
+Vite proxies local `/api` requests to the Render backend by default. To test the paired local backend on port 2000, start it with its `local` profile and run:
+
+```bash
+VITE_API_PROXY_TARGET=http://127.0.0.1:2000 npm run dev
+```
+
+For persistent local testing, use real PostgreSQL with the setup and smoke scripts in the [backend review branch](https://github.com/calledAdo/Real-time-Attendance-Auth-service/tree/codex/live-integration). Clone it alongside this frontend repository. The Vite development proxy works on whichever local port is available.
+
+To test the camera flow yourself, register fresh lecturer and student accounts in separate browser tabs. The local API prints each six-digit email verification code in its terminal. Verify both accounts, enroll the student with a live camera capture, then create a lecturer course with a CSV containing `name,matricNo,email` and the student's exact matric number and email. Open the course, start attendance with location permission, and check in from the student tab with the displayed code, location and camera. The completed session appears in lecturer Reports and student History. Browser camera and location permissions work on `localhost`; testing from a phone over plain HTTP requires a secure origin.
+
+For production builds, `VITE_API_BASE_URL` can override the backend origin and may include or omit `/api`. The frontend stores the bearer JWT in tab `sessionStorage`; it does not substitute mock data when a live request fails. Vercel SPA route rewrites are configured in `vercel.json`.
 
 ## Live flow
 
-The current source accepts lecturer or student registration and sends a six-digit email verification code. Students must use an `@student.oauife.edu.ng` address. The frontend sends `username` equal to the normalized email, then verifies with `{email,token}`. Resend is available. Login returns a JWT, but the source has no `/api/auth/me` endpoint to return the numeric user ID and verified account state, so the frontend stops before dashboard access and displays the missing-contract error. No live account can complete the agreed course and attendance flow yet.
+Students register with their `@student.oauife.edu.ng` email, name, password and matric number. Lecturers register with staff email, name and password. The backend emails a six-digit confirmation code. After verifying, users sign in; students then enroll a camera-generated 128-value face descriptor before they can access courses, sessions, history or reports. Students can sign out from face setup and resume it after signing in again. Lecturers enter their dashboard after email verification and sign-in without face enrollment. Lecturer course creation sends course details, optional supporting lecturer emails and a CSV roster. A verified student's email **and** matric number must match the roster to see the course.
 
-The frontend uses bearer JWTs in tab `sessionStorage` and does not substitute mock data when a live request fails. Its course adapter now follows the source's draft creation, multipart CSV upload, and roster confirmation sequence; its attendance adapter follows `/api/attendance/sessions` and the six-character alphanumeric code. These later steps cannot be exercised until the backend supplies `/me`, lecturer course listing, and active-session discovery. The PDF route exists in source, but deployment and authorization remain unverified.
+Lecturers start attendance from a course after allowing location access. The backend issues a five-minute code. Students use location, the class code and a live camera capture to check in; the backend checks roster, 100 m geofence, code, duplicate status and face descriptor similarity. Sessions and history are polled every 15 seconds. Lecturers can close a session and download a server-generated PDF containing present and absent roster members.
 
-The browser can generate a 128-number descriptor from a camera capture for enrollment and check-in. Live face enrollment remains paused: the current backend exposes public `/api/auth/onboard-face` with a caller-supplied username, rather than a JWT-bound enrollment endpoint, and `/api/auth/me` is still absent. The check-in endpoint still expects an embedding but cannot be reached through the agreed live flow yet. The source also does not geofence submitted coordinates. These gaps are listed in [BACKEND_API_STATUS.md](BACKEND_API_STATUS.md). The Render deployment timed out on an earlier read-only probe, so build success does not establish backend connectivity.
+Face descriptor matching is not liveness detection. A presented photo or video may pass, and browser GPS can be spoofed. The interface should not be represented as fraud-proof. The current API does not provide background push notifications or a reliable device lock.
 
 ## Demo flow
 
-Select **Lecturer view** or **Student view** on sign-in. Demo accounts are Maya Johnson (`maya@smartattend.demo`) and Amara Okafor (`amara@smartattend.demo`, matric `CSC/2023/0421`). Student view now opens face setup first. Choose **Open camera** to enroll a real camera capture; check-in takes another camera capture and compares its descriptor locally. **Use demo capture** keeps the older simulated path. The active seeded session may expire while you enroll; start a new one from Lecturer view if needed. You can also register a new local account; its verification link appears in the Demo inbox. Demo passwords are not verified or stored. Use **Sign out**, then **Use live API** to return to the backend mode.
+Select **Lecturer view** or **Student view** on sign-in. Demo accounts are Maya Johnson (`maya@smartattend.demo`) and Amara Okafor (`amara@smartattend.demo`, matric `CSC/2023/0421`). Student view opens face setup first. **Open camera** captures a descriptor for local matching; **Use demo capture** is a simulated shortcut. The seeded session may expire; start a new one from Lecturer view. Newly registered demo accounts receive a link in the in-app Demo inbox. Demo passwords are not checked or stored.
 
-The demo saves accounts, courses, rosters, sessions, and attendance in browser `localStorage`. Camera enrollment templates stay only in memory and are cleared on refresh or sign-out; a student must enroll again afterwards. Real camera captures use face-api.js detection and cosine matching with the backend's current 0.65 threshold. This is face matching, not liveness detection: a photo or video shown to the camera may pass. The **Use demo capture** button, location shortcut, email delivery, device restriction, and authentication are simulations. Demo PDFs are generated locally.
+The demo saves courses, rosters, sessions and attendance in browser `localStorage`. Camera templates remain in memory and clear on refresh or sign-out. Demo PDFs are generated locally. Demo location, email delivery, device restriction and authentication are simulations.

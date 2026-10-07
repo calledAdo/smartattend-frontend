@@ -22,7 +22,7 @@ export function Shell({ children, role }: { children: ReactNode; role: Role }) {
   const { user, mode, error, loading, refresh, signOut } = useApp()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
-  const links = (role === 'LECTURER' ? lecturerLinks : studentLinks).filter(link => mode === 'demo' || (link.to !== '/lecturer/reports' && link.to !== '/student/history'))
+  const links = role === 'LECTURER' ? lecturerLinks : studentLinks
   const exit = () => { signOut(); navigate('/auth/login') }
   return <div className="app-shell">
     <aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}>
