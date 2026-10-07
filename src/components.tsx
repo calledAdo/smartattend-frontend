@@ -68,11 +68,34 @@ export function CameraCapture({ onCapture, onClear, allowDemo = false }: { onCap
   const [capturing, setCapturing] = useState(false)
   const [error, setError] = useState('')
 
+  const errorName = (issue: unknown) => issue && typeof issue === 'object' && 'name' in issue ? String(issue.name) : 'UnknownError'
+  const cameraError = (issue: unknown) => {
+    const name = errorName(issue)
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') return `Camera access was blocked (${name}). Allow access for this site in your browser settings and try again.`
+    if (name === 'NotFoundError' || name === 'DevicesNotFoundError') return `No camera was found on this device (${name}).`
+    if (name === 'NotReadableError' || name === 'TrackStartError') return `The camera could not start (${name}). Close other apps using it and try again.`
+    return `Camera error (${name}). Try again or report this error name.`
+  }
+
   const stop = () => { streamRef.current?.getTracks().forEach(track => track.stop()); streamRef.current = null; setCameraOpen(false) }
   useEffect(() => {
     mountedRef.current = true
     return () => { mountedRef.current = false; streamRef.current?.getTracks().forEach(track => track.stop()); if (previewRef.current) URL.revokeObjectURL(previewRef.current) }
   }, [])
+  useEffect(() => {
+    if (!cameraOpen) return
+    const video = videoRef.current
+    const stream = streamRef.current
+    if (!video || !stream) return
+    video.srcObject = stream
+    void video.play().catch(issue => {
+      if (mountedRef.current && streamRef.current === stream) {
+        stop()
+        setError(`Camera preview could not start (${errorName(issue)}). Try opening the camera again.`)
+      }
+    })
+    return () => { video.pause(); video.srcObject = null }
+  }, [cameraOpen])
 
   async function openCamera() {
     if (openingRef.current) return
@@ -86,8 +109,7 @@ export function CameraCapture({ onCapture, onClear, allowDemo = false }: { onCap
       streamRef.current?.getTracks().forEach(track => track.stop())
       streamRef.current = stream
       setCameraOpen(true)
-      requestAnimationFrame(() => { if (videoRef.current) { videoRef.current.srcObject = stream; void videoRef.current.play() } })
-    } catch { if (mountedRef.current) setError('Camera access was denied or unavailable. Allow access in your browser and try again.') }
+    } catch (issue) { if (mountedRef.current) setError(cameraError(issue)) }
     finally { openingRef.current = false; if (mountedRef.current) setOpening(false) }
   }
 
